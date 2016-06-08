@@ -1,11 +1,19 @@
 import scrapy
+
+
 class DmozSpider(scrapy.spiders.Spider):
-	name="dmoz"
-	allowed_domains=["dmoz.org"]
-	start_urls=["http://www.dmoz.org/Computers/Programming/Languages/Python/Books/",
-        "http://www.dmoz.org/Computers/Programming/Languages/Python/Resources/"]
-	
-	def parse(self,response):
-		filename=response.url.split('/')[-2]
-		with open(filename,'wb') as f:
-			f.write(response.body)
+    name = "xueqiu"
+    allowed_domains = ["xueqiu.com"]
+    start_urls = ["https://xueqiu.com/8255849716"]
+
+
+'''
+name="30daydo"
+allowed_domains=["30daydo.com"]
+start_urls=["http://30daydo.com"]
+'''
+
+
+def parse(self, response):
+    print "*" * 10
+    print response.body
