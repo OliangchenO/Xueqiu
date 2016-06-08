@@ -1,10 +1,10 @@
 import scrapy
 
 
-class DmozSpider(scrapy.spiders.Spider):
+class MySpider(scrapy.spiders.Spider):
     name = "xueqiu"
     allowed_domains = ["xueqiu.com"]
-    start_urls = ["https://xueqiu.com/8255849716"]
+    start_urls = ["http://xueqiu.com/8255849716"]
 
 
 '''
