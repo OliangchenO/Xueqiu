@@ -1,7 +1,7 @@
 # -*-coding=utf-8-*-
 #抓取雪球的收藏文章
 __author__ = 'Rocky'
-import requests,cookielib,read_config,re,json,time
+import requests,cookielib,re,json,time
 from toolkit import Toolkit
 from lxml import etree
 url='https://xueqiu.com/snowman/login'
@@ -32,7 +32,6 @@ collection=session.get(fav_temp,headers=headers)
 fav_content= collection.text
 p=re.compile('"maxPage":(\d+)')
 maxPage=p.findall(fav_content)[0]
-#目前也只是第一页而已
 print maxPage
 print type(maxPage)
 maxPage=int(maxPage)
@@ -64,6 +63,7 @@ for i in range(1,maxPage+1):
         print filename
 
         content=tree.xpath('//div[@class="detail"]')
+        Toolkit.save2filecn(filename,"Link: %s\n\n" %url)
         for i in content:
             Toolkit.save2filecn(filename, i.xpath('string(.)'))
         #print content
