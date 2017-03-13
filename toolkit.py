@@ -1,7 +1,7 @@
 # -*-coding=utf-8-*-
 #常用的工具集合
 __author__ = 'Rocky'
-import codecs
+import codecs,re
 
 class Toolkit():
     @staticmethod
@@ -31,3 +31,8 @@ class Toolkit():
             account[ctype.strip()]=passwd.strip()
 
         return account
+
+    @staticmethod
+    def filename_filter(filename_old):
+        filename = re.sub('[\/:*?"<>|]', '-', filename_old)
+        return filename
