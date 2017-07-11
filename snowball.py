@@ -1,5 +1,5 @@
 # -*-coding=utf-8-*-
-#×¥È¡Ñ©ÇòµÄÊÕ²ØÎÄÕÂ
+#æŠ“å–é›ªçƒçš„æ”¶è—æ–‡ç« 
 __author__ = 'Rocky'
 import requests,http.cookiejar,re,json,time
 import pandas as pd
@@ -26,6 +26,7 @@ def request(url, cookie=''):
     return conn.getresponse()
 
 def get_xueqiu_hold(url):
+    df = pd.DataFrame()
     cookie = "xq_a_token=d4cae93eb5b67871c8ee5ef2bd80813fc65ba34a; xq_r_token=a6cddf77f7d8a04010ec94ca7a39618ff09f5921;"
     req = urllib.request.Request(url,headers = {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 5.1; rv:33.0) Gecko/20100101 Firefox/33.0',
@@ -38,6 +39,20 @@ def get_xueqiu_hold(url):
                       script.string, flags=re.DOTALL | re.MULTILINE).group(1)
     data = json.loads(json_text)
     for d in data["view_rebalancing"]["holdings"]:
+        stock_id = pd.Series()
+        stock_name = pd.Series()
+        weight = pd.Series()
+        segment_name = pd.Series()
+        segment_id = pd.Series()
+        stock_symbol = pd.Series()
+        stock_id = d['stock_id']
+        df["stock_id"] = stock_id;
+        df["stock_name"] = d['stock_name'];
+        df["weight"] = d['weight'];
+        df["segment_name"] = d['segment_name'];
+        df["segment_id"] = d['segment_id'];
+        df["stock_symbol"] = d['stock_symbol'];
+        df.to_csv("data.csv")
         if d['stock_name'] in projects.keys():
             projects[d['stock_name']] += d['weight']            
         else:
