@@ -28,6 +28,7 @@ def request(url, cookie=''):
     return conn.getresponse()
 
 def get_xueqiu_hold(cube_symbol,df):
+    projects = {}
     req = urllib.request.Request(cube_hold_url+cube_symbol,headers = {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 5.1; rv:33.0) Gecko/20100101 Firefox/33.0',
                 'cookie':cookie
@@ -39,17 +40,19 @@ def get_xueqiu_hold(cube_symbol,df):
                       script.string, flags=re.DOTALL | re.MULTILINE).group(1)
     data = json.loads(json_text)
     for d in data["view_rebalancing"]["holdings"]:
-        stock_weight_se = pd.Series()
-        stockName = d['stock_name']
-        stockWeight = d['weight']
-        stock_weight_se[cube_symbol] = stockWeight
-        df[stockName] = stock_weight_se
-#         if d['stock_name'] in projects.keys():
-#             projects[d['stock_name']] += d['weight']            
-#         else:
-#             projects[d['stock_name']]= d['stock_name']
+        if d['stock_name'] in projects.keys():
+            projects[d['stock_name']] += d['weight']            
+        else:
+            projects[d['stock_name']]= d['weight']
+    for stockname in projects.keys:
+        print(projects.get(stockname))
+#         df[stockName] = stock_weight_se
+#         stock_weight_se = pd.Series()
+#         stockName = d['stock_name']
+#         stockWeight = d['weight']
+#         stock_weight_se[cube_symbol] = stockWeight
+        
     
-#     print(projects)
 
 def get_xueqiu_cube_list(category,count,orderby):
     id_se = pd.Series()
