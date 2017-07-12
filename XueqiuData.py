@@ -1,5 +1,6 @@
 # -*-coding=utf-8-*-
 #抓取雪球的收藏文章
+from _ast import Str
 __author__ = 'liache'
 import requests,http.cookiejar,re,json,time
 import pandas as pd
@@ -26,11 +27,7 @@ def request(url, cookie=''):
     conn.request(method='GET', url=url , headers={'Cookie': cookie})
     return conn.getresponse()
 
-def get_xueqiu_hold(cube_symbol,cube_weight):
-    db = TinyDB('data/db_holding.json')
-    print(cube_symbol)
-    table = db.table(cube_symbol)
-    db.purge_table(cube_symbol)
+def get_xueqiu_hold(cube_symbol,df):
     req = urllib.request.Request(cube_hold_url+cube_symbol,headers = {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 5.1; rv:33.0) Gecko/20100101 Firefox/33.0',
                 'cookie':cookie
@@ -40,36 +37,66 @@ def get_xueqiu_hold(cube_symbol,cube_weight):
     script = soup.find('script', text=re.compile('SNB\.cubeInfo'))
     json_text = re.search(r'^\s*SNB\.cubeInfo\s*=\s*({.*?})\s*;\s*$',
                       script.string, flags=re.DOTALL | re.MULTILINE).group(1)
-#     json_text.append({'cube_symbol':cube_symbol}).append({'cube_weight':cube_weight})
     data = json.loads(json_text)
-#     data.update({'cube_symbol',cube_symbol}).update({'cube_weight',cube_weight})
-#     data["view_rebalancing"]["holdings"].append("cube_symbol : "+cube_symbol)
-#     data["view_rebalancing"]["holdings"].append("cube_weight : "+cube_weight)
-#     print(data["view_rebalancing"]["holdings"])
-#     data["view_rebalancing"]["holdings"]
-    table.insert({"cube_symbol":data["view_rebalancing"]["holdings"]})
-#     for row in table:
-#         print(row)
+    for d in data["view_rebalancing"]["holdings"]:
+        stock_weight_se = pd.Series()
+        stockName = d['stock_name']
+        stockWeight = d['weight']
+        stock_weight_se[cube_symbol] = stockWeight
+        df[stockName] = stock_weight_se
+#         if d['stock_name'] in projects.keys():
+#             projects[d['stock_name']] += d['weight']            
+#         else:
+#             projects[d['stock_name']]= d['stock_name']
+    
+#     print(projects)
 
 def get_xueqiu_cube_list(category,count,orderby):
+    id_se = pd.Series()
+    name_se = pd.Series()
+    symbol_se = pd.Series()
+    daily_gain_se = pd.Series()
+    monthly_gain_se = pd.Series()
+    annualized_gain_rate_se = pd.Series()
+    total_gain_se = pd.Series()
+    created_at_se = pd.Series()
+    df = pd.DataFrame()
     url=cube_list_url+"?category="+category+"&count="+count+"&market=cn&profit="+orderby
     data = request(url,cookie)
     jsonObj = json.loads(data.read())
-    db = TinyDB('data/db_cube.json')
-    table = db.table("Cube")
-    db.purge_table("Cube")
+    print(jsonObj)
     for TopestCube in jsonObj["list"]:
-        table.insert(TopestCube)
-#     for TopestCube in jsonObj["list"]:
-#         id = TopestCube["id"]
-#         name = TopestCube["name"]
-#         symbol = TopestCube["symbol"]
-#         daily_gain = TopestCube["daily_gain"]
-#         monthly_gain = TopestCube["monthly_gain"]
-#         annualized_gain_rate = TopestCube["annualized_gain_rate"]
-#         total_gain = TopestCube["total_gain"]
-        
+        id = TopestCube["id"]
+        name = TopestCube["name"]
+        symbol = TopestCube["symbol"]
+        daily_gain = TopestCube["daily_gain"]
+        monthly_gain = TopestCube["monthly_gain"]
+        annualized_gain_rate = TopestCube["annualized_gain_rate"]
+        total_gain = TopestCube["total_gain"]
+        timeStp = TopestCube["created_at"]
+        ltime=time.localtime(timeStp/1000.0) 
+        created_at=time.strftime("%Y-%m-%d %H:%M:%S", ltime)
+        id_se[symbol] = id
+        name_se[symbol] = name
+        symbol_se[symbol] = symbol
+        daily_gain_se[symbol] = daily_gain
+        monthly_gain_se[symbol] = monthly_gain
+        annualized_gain_rate_se[symbol] = annualized_gain_rate
+        total_gain_se[symbol] = total_gain
+        created_at_se[symbol] = created_at
+        get_xueqiu_hold(symbol,df)
+    df["id"] = id_se
+    df["name"] = name_se
+    df["symbol"] = symbol_se
+    df["daily_gain"] = daily_gain_se
+    df["monthly_gain"] = monthly_gain_se
+    df["annualized_gain_rate"] = annualized_gain_rate_se
+    df["total_gain"] = total_gain_se
+    df["created_at"] = created_at_se
+    df.to_csv("data/TopestCube.csv")
+    print (df.head(20))
 #     print(jsonObj)
+
 
 def searchFromDb():
     db = TinyDB('data/db_Cube')
@@ -169,8 +196,8 @@ cookie = "xq_a_token=d4cae93eb5b67871c8ee5ef2bd80813fc65ba34a; xq_r_token=a6cddf
 cube_list_url="https://xueqiu.com/cubes/discover/rank/cube/list.json"
 cube_hold_url="https://xueqiu.com/P/"
 get_xueqiu_cube_list("14","10","annualized_gain_rate")
-searchFromDb()
-calculate()
+# searchFromDb()
+# calculate()
 # get_xueqiu_hold("https://xueqiu.com/P/ZH003851");
 # download()
 # fav_temp='https://xueqiu.com/favs?page=1'
