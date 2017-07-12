@@ -1,6 +1,7 @@
 # -*-coding=utf-8-*-
 #抓取雪球的收藏文章
 from _ast import Str
+from _datetime import date
 __author__ = 'liache'
 import requests,http.cookiejar,re,json,time
 import pandas as pd
@@ -11,6 +12,7 @@ from lxml import etree
 import http.client
 from bs4 import BeautifulSoup
 from jtc import Json
+import dictSort
 
 def request(url, cookie=''):
     ret = parse.urlparse(url)    # Parse input URL
@@ -28,7 +30,7 @@ def request(url, cookie=''):
     return conn.getresponse()
 
 def get_xueqiu_hold(cube_symbol,cube_weight):
-    
+    cubeholding = {}
     req = urllib.request.Request(cube_hold_url+cube_symbol,headers = {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 5.1; rv:33.0) Gecko/20100101 Firefox/33.0',
                 'cookie':cookie
@@ -41,77 +43,45 @@ def get_xueqiu_hold(cube_symbol,cube_weight):
     data = json.loads(json_text)
     for d in data["view_rebalancing"]["holdings"]:
         if d['stock_name'] in projects.keys():
-            projects[d['stock_name']] += d['weight']            
+            projects[d['stock_name']] += d['weight']*cube_weight        
         else:
-            projects[d['stock_name']]= d['weight']
-    return projects
-    
-#         df[stockName] = stock_weight_se
-#         stock_weight_se = pd.Series()
-#         stockName = d['stock_name']
-#         stockWeight = d['weight']
-#         stock_weight_se[cube_symbol] = stockWeight
-        
+            projects[d['stock_name']]= d['weight']*cube_weight
+    for d in data["view_rebalancing"]["holdings"]:
+        if d['stock_name'] in cubeholding.keys():
+            cubeholding[d['stock_name']] += d['weight']*cube_weight        
+        else:
+            cubeholding[d['stock_name']]= d['weight']*cube_weight
+    print("组合："+cube_symbol+"权重："+str(cube_weight))
+    print(cubeholding)
+    print("-------------------------------------------------------------")
     
 
 def get_xueqiu_cube_list(category,count,orderby):
-    id_se = pd.Series()
-    name_se = pd.Series()
-    symbol_se = pd.Series()
-    daily_gain_se = pd.Series()
-    monthly_gain_se = pd.Series()
-    annualized_gain_rate_se = pd.Series()
-    total_gain_se = pd.Series()
-    created_at_se = pd.Series()
-    stock_weight_se = pd.Series()
-    df = pd.DataFrame()
     url=cube_list_url+"?category="+category+"&count="+count+"&market=cn&profit="+orderby
     data = request(url,cookie)
     jsonObj = json.loads(data.read())
     print(jsonObj)
     for TopestCube in jsonObj["list"]:
-        id = TopestCube["id"]
-        name = TopestCube["name"]
-        symbol = TopestCube["symbol"]
         daily_gain = TopestCube["daily_gain"]
         monthly_gain = TopestCube["monthly_gain"]
         annualized_gain_rate = TopestCube["annualized_gain_rate"]
         total_gain = TopestCube["total_gain"]
-        timeStp = TopestCube["created_at"]
-        ltime=time.localtime(timeStp/1000.0) 
-        created_at=time.strftime("%Y-%m-%d %H:%M:%S", ltime)
-        id_se[symbol] = id
-        name_se[symbol] = name
-        symbol_se[symbol] = symbol
-        daily_gain_se[symbol] = daily_gain
-        monthly_gain_se[symbol] = monthly_gain
-        annualized_gain_rate_se[symbol] = annualized_gain_rate
-        total_gain_se[symbol] = total_gain
-        created_at_se[symbol] = created_at
-        projects = get_xueqiu_hold(symbol)
-        print(projects);
-        for stockname in projects.keys():
-            stockWeight = projects.get(stockname)
-            stock_weight_se[symbol] = stockWeight
-            df[stockname] = stock_weight_se
-        df["id"] = id_se
-        df["name"] = name_se
-        df["symbol"] = symbol_se
-        df["daily_gain"] = daily_gain_se
-        df["monthly_gain"] = monthly_gain_se
-        df["annualized_gain_rate"] = annualized_gain_rate_se
-        df["total_gain"] = total_gain_se
-        df["created_at"] = created_at_se
-    
-    df.to_csv("data/TopestCube.csv")
-    print (df.head(20))
-#     print(jsonObj)
+        symbol = TopestCube["symbol"]
+        get_xueqiu_hold(symbol, total_gain/100)
+    print("-------------------------------------------------------------")
+    print(projects)
+    print("-------------------------------------------------------------")
+    print(sort_by_value(projects))
 
+def sort_by_value(d):
+    items=d.items()
+    backitems=[[v[1],v[0]] for v in items]
+    backitems.sort()
+    return [ backitems[i][1] for i in range(0,len(backitems))]
 
 def searchFromDb():
     db = TinyDB('data/db_Cube')
     table = db.table('Cube')
-    
     for row in table:
         get_xueqiu_hold(row.get('symbol'),row.get('annualized_gain_rate')/(100))
 
@@ -205,7 +175,7 @@ cookie = "xq_a_token=d4cae93eb5b67871c8ee5ef2bd80813fc65ba34a; xq_r_token=a6cddf
 # session.cookies.save()
 cube_list_url="https://xueqiu.com/cubes/discover/rank/cube/list.json"
 cube_hold_url="https://xueqiu.com/P/"
-get_xueqiu_cube_list("14","10","annualized_gain_rate")
+get_xueqiu_cube_list("14","100","annualized_gain_rate")
 
 # searchFromDb()
 # calculate()
