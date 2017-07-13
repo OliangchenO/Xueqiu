@@ -11,8 +11,8 @@ from toolkit import Toolkit
 from lxml import etree
 import http.client
 from bs4 import BeautifulSoup
-from jtc import Json
-import dictSort
+import easytrader
+import math
 
 def request(url, cookie=''):
     ret = parse.urlparse(url)    # Parse input URL
@@ -20,12 +20,10 @@ def request(url, cookie=''):
         conn = http.client.HTTPConnection(ret.netloc)
     elif ret.scheme == 'https':
         conn = http.client.HTTPSConnection(ret.netloc)
-        
     url = ret.path
     if ret.query: url += '?' + ret.query
     if ret.fragment: url += '#' + ret.fragment
     if not url: url = '/'
-    
     conn.request(method='GET', url=url , headers={'Cookie': cookie})
     return conn.getresponse()
 
@@ -41,16 +39,17 @@ def get_xueqiu_hold(cube_symbol,cube_weight):
     json_text = re.search(r'^\s*SNB\.cubeInfo\s*=\s*({.*?})\s*;\s*$',
                       script.string, flags=re.DOTALL | re.MULTILINE).group(1)
     data = json.loads(json_text)
+    print(data["view_rebalancing"]["holdings"])
     for d in data["view_rebalancing"]["holdings"]:
-        if d['stock_name'] in projects.keys():
-            projects[d['stock_name']] += d['weight']*cube_weight        
+        if d['stock_name']+d['stock_symbol'] in projects.keys():
+            projects[d['stock_name']+d['stock_symbol']] += d['weight']*cube_weight        
         else:
-            projects[d['stock_name']]= d['weight']*cube_weight
+            projects[d['stock_name']+d['stock_symbol']]= d['weight']*cube_weight
     for d in data["view_rebalancing"]["holdings"]:
-        if d['stock_name'] in cubeholding.keys():
-            cubeholding[d['stock_name']] += d['weight']*cube_weight        
+        if d['stock_name']+d['stock_symbol'] in cubeholding.keys():
+            cubeholding[d['stock_name']+d['stock_symbol']] += d['weight']*cube_weight        
         else:
-            cubeholding[d['stock_name']]= d['weight']*cube_weight
+            cubeholding[d['stock_name']+d['stock_symbol']]= d['weight']*cube_weight
     print("组合："+cube_symbol+"权重："+str(cube_weight))
     print(cubeholding)
     print("-------------------------------------------------------------")
@@ -71,12 +70,14 @@ def get_xueqiu_cube_list(category,count,orderby):
     print("-------------------------------------------------------------")
     print(projects)
     print("-------------------------------------------------------------")
-    print(sort_by_value(projects))
+    sorted_stock = sort_by_value(projects)
+    print(sorted_stock)
+    return sorted_stock
 
 def sort_by_value(d):
     items=d.items()
     backitems=[[v[1],v[0]] for v in items]
-    backitems.sort()
+    backitems.sort(reverse=True)
     return [ backitems[i][1] for i in range(0,len(backitems))]
 
 def searchFromDb():
@@ -90,9 +91,44 @@ def calculate():
     for cube_symbol in db.tables():
         HoldingTable = db.table(cube_symbol)
         for row in HoldingTable:
-            
             print(row)
-        
+
+def adjust_weight():
+    user = easytrader.use('xq')
+    user.prepare('xq.json')
+    sorted_stock = get_xueqiu_cube_list("14","100","annualized_gain_rate")
+    totol_weight = 0.0
+    adjust_weight = {}
+    for i in range(5):
+        totol_weight +=projects[sorted_stock[i]]
+    for i in range(5):
+        weight = projects[sorted_stock[i]]/totol_weight*100
+        adjust_weight[sorted_stock[i]]= weight
+        user.adjust_weight(sorted_stock[i][6:],math.floor(weight))
+        print('雪球调仓成功，买入：'+sorted_stock[i]+", 仓位："+str(math.floor(weight)))
+    print(adjust_weight)    
+ 
+def xueqiu_adjust_weight():
+    user = easytrader.use('xq')
+    user.prepare('xq.json')
+    sorted_stock = get_xueqiu_cube_list("14","10","annualized_gain_rate")[:5]
+    #查看现在持仓股是否在计划买入内，不在的话卖出     
+    for holding_stock in user.get_position():
+        if holding_stock['stock_name']+holding_stock['stock_code'] in sorted_stock:
+            pass
+        else:
+            user.adjust_weight(holding_stock['stock_code'][6:],0)
+            print("卖出:"+holding_stock['stock_name']+holding_stock['stock_code'])
+    totol_weight = 0.0
+    adjust_weight = {}
+    for i in range(5):
+        totol_weight +=projects[sorted_stock[i]]
+    for i in range(5):
+        weight = projects[sorted_stock[i]]/totol_weight*100
+        adjust_weight[sorted_stock[i]]= weight
+#         user.adjust_weight(sorted_stock[i][6:],math.floor(weight))
+        print('雪球调仓成功，买入：'+sorted_stock[i]+", 仓位："+str(math.floor(weight)))
+    print(adjust_weight)
 
 def download():
     stock_se = pd.Series()
@@ -175,7 +211,7 @@ cookie = "xq_a_token=d4cae93eb5b67871c8ee5ef2bd80813fc65ba34a; xq_r_token=a6cddf
 # session.cookies.save()
 cube_list_url="https://xueqiu.com/cubes/discover/rank/cube/list.json"
 cube_hold_url="https://xueqiu.com/P/"
-get_xueqiu_cube_list("14","100","annualized_gain_rate")
+xueqiu_adjust_weight()
 
 # searchFromDb()
 # calculate()
