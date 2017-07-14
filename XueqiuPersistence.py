@@ -1,6 +1,7 @@
 # -*-coding=utf-8-*-
 #抓取雪球的收藏文章
 from numpy.f2py.auxfuncs import throw_error
+from numpy import rank
 __author__ = 'liache'
 from _ast import Str
 from _datetime import date, datetime
@@ -59,37 +60,64 @@ def get_xueqiu_hold(cube_symbol,cube_weight):
 def holdinfo_save(holdInfo):
     table = db['CubeHolding']
     cube_symbol = holdInfo["cube_symbol"]
-    stock_code = holdInfo["stock_code"]
-    res = table.find_one(cube_symbol=cube_symbol,stock_code=stock_code,date=today)
+    stock_symbol = holdInfo["stock_symbol"]
+    res = table.find_one(cube_symbol=cube_symbol,stock_symbol=stock_symbol)
     if res == None:
+        holdInfo["save_date"] = today
+        holdInfo["update_date"] = today
         table.insert(holdInfo)
+        print(holdInfo)
     else:
-        table.update(holdInfo,['stock_code','cube_symbol','date'])
+        holdInfo["update_date"]=today
+        table.update(holdInfo,['stock_code','cube_symbol','save_date'])
 
 def cubelist_save(TopestCube):
     table = db['CubeList']
     symbol = TopestCube["symbol"]
-    orderby = TopestCube["orderby"]
-    res = table.find_one(symbol=symbol,date=today,orderby=orderby)
+    orderType = TopestCube["orderType"]
+    res = table.find_one(symbol=symbol,orderType=orderType)
     if res == None:
+        TopestCube["save_date"] = today
+        TopestCube["update_date"]=today
         table.insert(TopestCube)
     else:
-        table.update(TopestCube,['symbol','date','orderby'])
+        TopestCube["update_date"]=today
+        table.update(TopestCube,['symbol','orderType'])
     
+def stock_weight_save(stock_weight):
+    table = db['StockWeight']
+    res = table.find_one(update_date=today)
+    if res == None:
+        stock_weight["save_date"] = today
+        stock_weight["update_date"]=today
+        table.insert(stock_weight)
+    else:
+        stock_weight["update_date"]=today
+        table.update(stock_weight, ["update_date"])
+    for weight in table.find(update_date=today):
+        print(weight)    
+  
 def get_cube_hold(cube_symbol):
     table = db['CubeHolding']
-    user.prepare(user='liang_chen@aliyun.com', password='19891121Lc', portfolio_code=cube_symbol, portfolio_market='cn')
-    balance=user.get_balance()[0]['asset_balance']
-    for holdInfo in user.get_position():
-        holdInfo["cube_symbol"]=cube_symbol
-        holdInfo["stock_weight"]=holdInfo["market_value"]/balance*100
-        holdInfo["date"]=today
+    req = urllib.request.Request(cube_hold_url+cube_symbol,headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 5.1; rv:33.0) Gecko/20100101 Firefox/33.0',
+                'cookie':cookie
+               })
+    soup = urllib.request.urlopen(req).read().decode('utf-8')
+    soup = BeautifulSoup(soup, 'lxml')
+    script = soup.find('script', text=re.compile('SNB\.cubeInfo'))
+    json_text = re.search(r'^\s*SNB\.cubeInfo\s*=\s*({.*?})\s*;\s*$',
+                      script.string, flags=re.DOTALL | re.MULTILINE).group(1)
+    data = json.loads(json_text)
+    for holdInfo in data["view_rebalancing"]["holdings"]:
+        holdInfo["cube_symbol"] = cube_symbol
         holdinfo_save(holdInfo)
 
-def get_cube_list(category,count,orderby):
-    url=cube_list_url+"?category="+category+"&count="+count+"&market=cn&profit="+orderby
+def get_cube_list(category,count,orderType):
+    url=cube_list_url+"?category="+category+"&count="+count+"&market=cn&profit="+orderType
     data = request(url,cookie)
     jsonObj = json.loads(data.read())
+    rank = 1
     for TopestCube in jsonObj["list"]:
         created_at = TopestCube["created_at"]
         ltime=time.localtime(created_at/1000.0) 
@@ -99,15 +127,15 @@ def get_cube_list(category,count,orderby):
         ltime=time.localtime(updated_at/1000.0) 
         updated_at_str=time.strftime("%Y-%m-%d", ltime)
         TopestCube["updated_at"] = updated_at_str
-        TopestCube["date"] = today
         TopestCube["category"] = category
-        TopestCube["orderby"] = orderby
+        TopestCube["orderType"] = orderType
+        TopestCube["Rank"] = rank
         del(TopestCube["style"],TopestCube["description"],TopestCube["owner"])
-        print(TopestCube)
         cubelist_save(TopestCube)
+        rank = rank + 1
      
-def get_xueqiu_cube_list(category,count,orderby):
-    url=cube_list_url+"?category="+category+"&count="+count+"&market=cn&profit="+orderby
+def get_xueqiu_cube_list(category,count,orderType):
+    url=cube_list_url+"?category="+category+"&count="+count+"&market=cn&profit="+orderType
     data = request(url,cookie)
     jsonObj = json.loads(data.read())
     for TopestCube in jsonObj["list"]:
@@ -136,24 +164,35 @@ def searchFromDb():
     for row in table:
         get_xueqiu_hold(row.get('symbol'),row.get('annualized_gain_rate')/(100))
 
-def calculate(category,count,orderby):
+def storedata(category,count,orderType):
+    stock_weight = {}
     cubelistTable = db['CubeList']
     cubeholeTable = db['CubeHolding']
-    if cubelistTable.find_one(date=today,orderby=orderby,category=orderby) == None:
-        get_cube_list(category,count,orderby)
+    if cubelistTable.find_one(orderType=orderType,category=category,update_date=today) == None:
+        get_cube_list(category,count,orderType)
     else:
-        for cube in cubelistTable.find(date=today,orderby=orderby,category=orderby):
-            if cubeholeTable.find_one(cube_symbol=cube["symbol"],date=today) == None:
+        cubelist=cubelistTable.find(orderType=orderType,category=category,update_date=today, order_by='Rank')
+        for cube in cubelist:
+            cube_weight = cube["annualized_gain_rate"]/100
+            if cubeholeTable.find_one(cube_symbol=cube["symbol"],update_date=today) == None:
                 get_cube_hold(cube["symbol"])
             else:
-                for stock in cubeholeTable.find(cube_symbol=cube["symbol"],date=today):
-                    print(stock)
-            
-def xueqiu_adjust_weight():
+                for stock in cubeholeTable.find(cube_symbol=cube["symbol"],update_date=today):
+                    if stock['stock_name']+stock['stock_symbol'] in stock_weight.keys(): 
+                        stock_weight[stock["stock_name"]+stock["stock_symbol"]] += stock["weight"]*cube_weight
+                    else:
+                        stock_weight[stock["stock_name"]+stock["stock_symbol"]] = stock["weight"]*cube_weight
+    stock_weight_save(stock_weight)
+    return stock_weight
+
+def xueqiu_adjust_weight(category,count,orderType):
+    stock_weight=storedata(category,count,orderType)
+    print(stock_weight)
+    del(stock_weight["update_date"])
+    sorted_stock = sort_by_value(stock_weight)[:5]
+    print(sorted_stock)
     user = easytrader.use('xq')
     user.prepare('xq.json')
-    sorted_stock = get_xueqiu_cube_list("14","10","annualized_gain_rate")[:5]
-    #查看现在持仓股是否在计划买入内，不在的话卖出     
     for holding_stock in user.get_position():
         if holding_stock['stock_name']+holding_stock['stock_code'] in sorted_stock:
             pass
@@ -163,13 +202,35 @@ def xueqiu_adjust_weight():
     totol_weight = 0.0
     adjust_weight = {}
     for i in range(5):
-        totol_weight +=projects[sorted_stock[i]]
+        totol_weight +=stock_weight[sorted_stock[i]]
     for i in range(5):
-        weight = projects[sorted_stock[i]]/totol_weight*100
+        weight = stock_weight[sorted_stock[i]]/totol_weight*100
         adjust_weight[sorted_stock[i]]= weight
-#         user.adjust_weight(sorted_stock[i][6:],math.floor(weight))
+        user.adjust_weight(sorted_stock[i][6:],math.floor(weight))
         print('雪球调仓成功，买入：'+sorted_stock[i]+", 仓位："+str(math.floor(weight)))
     print(adjust_weight)
+            
+# def xueqiu_adjust_weight():
+#     user = easytrader.use('xq')
+#     user.prepare('xq.json')
+#     sorted_stock = get_xueqiu_cube_list("14","10","annualized_gain_rate")[:5]
+#     #查看现在持仓股是否在计划买入内，不在的话卖出     
+#     for holding_stock in user.get_position():
+#         if holding_stock['stock_name']+holding_stock['stock_code'] in sorted_stock:
+#             pass
+#         else:
+#             user.adjust_weight(holding_stock['stock_code'][6:],0)
+#             print("卖出:"+holding_stock['stock_name']+holding_stock['stock_code'])
+#     totol_weight = 0.0
+#     adjust_weight = {}
+#     for i in range(5):
+#         totol_weight +=projects[sorted_stock[i]]
+#     for i in range(5):
+#         weight = projects[sorted_stock[i]]/totol_weight*100
+#         adjust_weight[sorted_stock[i]]= weight
+#         user.adjust_weight(sorted_stock[i][6:],math.floor(weight))
+#         print('雪球调仓成功，买入：'+sorted_stock[i]+", 仓位："+str(math.floor(weight)))
+#     print(adjust_weight)
 
 def download():
     stock_se = pd.Series()
@@ -228,12 +289,11 @@ def download():
 projects = {}
 today = datetime.now().strftime("%Y-%m-%d")
 db = db = dataset.connect('sqlite:///Xueqiu.db')
-user = easytrader.use('xq')
-cookie = "xq_a_token=d4cae93eb5b67871c8ee5ef2bd80813fc65ba34a; xq_r_token=a6cddf77f7d8a04010ec94ca7a39618ff09f5921;"
+cookie = "xq_a_token=cee27ba564aeda64291f3368cb6f197f52271fde; xq_r_token=ed7cdf6fdfff2c92adddcba4a65a31c5ec494660;"
 # session.cookies.save()
 cube_list_url="https://xueqiu.com/cubes/discover/rank/cube/list.json"
 cube_hold_url="https://xueqiu.com/P/"
 # xueqiu_adjust_weight()
 # get_cube_hold("ZH003851")
 # get_cube_list("14", "100", "annualized_gain_rate")
-calculate("14", "100", "annualized_gain_rate")
+xueqiu_adjust_weight("14", "100", "annualized_gain_rate")
