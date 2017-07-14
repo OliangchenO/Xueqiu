@@ -105,7 +105,7 @@ def get_cube_list(category,count,orderby):
         del(TopestCube["style"],TopestCube["description"],TopestCube["owner"])
         print(TopestCube)
         cubelist_save(TopestCube)
-    
+     
 def get_xueqiu_cube_list(category,count,orderby):
     url=cube_list_url+"?category="+category+"&count="+count+"&market=cn&profit="+orderby
     data = request(url,cookie)
