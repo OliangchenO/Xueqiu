@@ -184,6 +184,27 @@ def xueqiu_adjust_weight(category,count,orderType):
     else:
         for operate in db.get_table("OperatingRecord").find(operate_date=today):
             print(operate)
+   
+def get_cube_rebalancing(cube_symbol,count,page):
+    table = db["CubeRebalance"]
+    url=cube_rebalancing_url+"?cube_symbol="+cube_symbol+"&count="+count+"&page="+page
+    data = request(url,cookie)
+    jsonObj = json.loads(data.read())
+    for rebalance in jsonObj["list"]:
+        if rebalance["status"] == "success":
+            items = rebalance["rebalancing_histories"]
+            cash = rebalance["cash_value"]
+            for item in items:
+                timeStp = item["updated_at"]
+                ltime=time.localtime(timeStp/1000.0) 
+                updated_at=time.strftime("%Y-%m-%d", ltime)
+                if updated_at == today:
+                    item["cube_symbol"] = cube_symbol
+                    table.insert(item)
+                else:
+                    break
+        else:
+            print (rebalance["status"])        
     
 today = datetime.now().strftime("%Y-%m-%d")
 db = db = dataset.connect('sqlite:///Xueqiu.db')
@@ -191,6 +212,8 @@ cookie = "xq_a_token=a61ac6340ec024176756926a91ef60b7e91dcd25; xq_r_token=b9eaac
 # session.cookies.save()
 cube_list_url="https://xueqiu.com/cubes/discover/rank/cube/list.json"
 cube_hold_url="https://xueqiu.com/P/"
+cube_rebalancing_url="https://xueqiu.com/cubes/rebalancing/history.json"
 # db.get_table("OperatingRecord").drop()
-xueqiu_adjust_weight("14", "100", "annualized_gain_rate")
+# xueqiu_adjust_weight("14", "100", "annualized_gain_rate")
+get_cube_rebalancing("ZH179167","20","1")
 # select_new_stock()
