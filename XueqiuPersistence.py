@@ -143,51 +143,51 @@ def storedata(category,count,orderType):
     return stock_weight
 
 def xueqiu_adjust_weight(category,count,orderType):
-    
-    if db.get_table("OperatingRecord").find_one(operate_date=today)==None:
-        stock_weight=storedata(category,count,orderType)
-        print(stock_weight)
-        del(stock_weight["update_date"])
-        sorted_stock = sort_by_value(stock_weight)[:5]
-        print(sorted_stock)
-        user = easytrader.use('xq')
-        user.prepare('xq.json')
-        for holding_stock in user.get_position():
-            operating_record = {}
-            if holding_stock['stock_name']+holding_stock['stock_code'] in sorted_stock:
-                pass
-            else:
-#               user.adjust_weight(holding_stock['stock_code'][6:],0)
-                print("卖出:"+holding_stock['stock_name']+holding_stock['stock_code'])
-                operating_record["stock_code"]=holding_stock["stock_code"]
-                operating_record["stock_name"]=holding_stock["stock_name"]
-                operating_record["weight"]=0
-                operating_record["operate"]="清仓"
-                operating_record["operate_date"]=today
-                operating_record_save(operating_record)
-        totol_weight = 0.0
-        adjust_weight = {}
-        for i in range(5):
-            totol_weight +=stock_weight[sorted_stock[i]]
-        for i in range(5):
-            operating_record = {}
-            weight = stock_weight[sorted_stock[i]]/totol_weight*100
-            adjust_weight[sorted_stock[i]]= weight
-#             user.adjust_weight(sorted_stock[i][-6:],math.floor(weight))
-            operating_record["stock_code"]=sorted_stock[i][-8:]
-            operating_record["stock_name"]=sorted_stock[i][:-8]
-            operating_record["weight"]=math.floor(weight)
-            operating_record["operate"]="调仓"
+    stock_weight=storedata(category,count,orderType)
+    print(stock_weight)
+    del(stock_weight["update_date"])
+    sorted_stock = sort_by_value(stock_weight)[:5]
+    print(sorted_stock)
+    user = easytrader.use('xq')
+    user.prepare('xq.json')
+    for holding_stock in user.get_position():
+        operating_record = {}
+        if holding_stock['stock_name']+holding_stock['stock_code'] in sorted_stock:
+            pass
+        else:
+            user.adjust_weight(holding_stock['stock_code'][-6:],0)
+            print("卖出:"+holding_stock['stock_name']+holding_stock['stock_code'])
+            operating_record["stock_code"]=holding_stock["stock_code"]
+            operating_record["stock_name"]=holding_stock["stock_name"]
+            operating_record["weight"]=0
+            operating_record["operate"]="清仓"
             operating_record["operate_date"]=today
-            print('雪球调仓成功，买入：'+sorted_stock[i]+", 仓位："+str(math.floor(weight)))
             operating_record_save(operating_record)
+    totol_weight = 0.0
+    adjust_weight = {}
+    for i in range(5):
+        totol_weight +=stock_weight[sorted_stock[i]]
+    for i in range(5):
+        operating_record = {}
+        weight = stock_weight[sorted_stock[i]]/totol_weight*100
+        adjust_weight[sorted_stock[i]]= weight
+        user.adjust_weight(sorted_stock[i][-6:],math.floor(weight))
+        operating_record["stock_code"]=sorted_stock[i][-8:]
+        operating_record["stock_name"]=sorted_stock[i][:-8]
+        operating_record["weight"]=math.floor(weight)
+        operating_record["operate"]="调仓"
+        operating_record["operate_date"]=today
+        print('雪球调仓成功，买入：'+sorted_stock[i]+", 仓位："+str(math.floor(weight)))
+        operating_record_save(operating_record)
+    if db.get_table("OperatingRecord").find_one(operate_date=today)==None:
+        pass
     else:
         for operate in db.get_table("OperatingRecord").find(operate_date=today):
             print(operate)
     
 today = datetime.now().strftime("%Y-%m-%d")
 db = db = dataset.connect('sqlite:///Xueqiu.db')
-cookie = "xq_a_token=cee27ba564aeda64291f3368cb6f197f52271fde; xq_r_token=ed7cdf6fdfff2c92adddcba4a65a31c5ec494660;"
+cookie = "xq_a_token=a61ac6340ec024176756926a91ef60b7e91dcd25; xq_r_token=b9eaacae3956c3710faf86b22744a325de04552e;"
 # session.cookies.save()
 cube_list_url="https://xueqiu.com/cubes/discover/rank/cube/list.json"
 cube_hold_url="https://xueqiu.com/P/"
